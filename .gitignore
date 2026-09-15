@@ -1,0 +1,10 @@
+# Ignore benchmark JSON reports
+*.json
+
+# Python cache and environments
+__pycache__/
+*.pyc
+venv/
+.venv/
+*.swp
+.vscode/
