@@ -1,0 +1,356 @@
+{
+    "device": "RealSense D456",
+    "firmware": "5.17.0.9",
+    "resolution": "848x480",
+    "fps": 30,
+    "individual_tests": {
+        "Depth Laser Power": {
+            "parameters_changed": [
+                "Depth Laser Power"
+            ],
+            "usb_cmd_latency_ms": 40.85,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 30,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_30"
+                }
+            }
+        },
+        "Depth Exposure": {
+            "parameters_changed": [
+                "Depth Exposure"
+            ],
+            "usb_cmd_latency_ms": 25.35,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 1,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_1"
+                },
+                "30_Hz": {
+                    "dropped_frames": 29,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_29"
+                }
+            }
+        },
+        "Depth Gain": {
+            "parameters_changed": [
+                "Depth Gain"
+            ],
+            "usb_cmd_latency_ms": 4.21,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                }
+            }
+        },
+        "RGB Exposure": {
+            "parameters_changed": [
+                "RGB Exposure"
+            ],
+            "usb_cmd_latency_ms": 7.93,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                }
+            }
+        },
+        "RGB Gain": {
+            "parameters_changed": [
+                "RGB Gain"
+            ],
+            "usb_cmd_latency_ms": 0.57,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                }
+            }
+        },
+        "RGB White Balance": {
+            "parameters_changed": [
+                "RGB White Balance"
+            ],
+            "usb_cmd_latency_ms": 0.64,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                }
+            }
+        }
+    },
+    "bundled_tests": {
+        "Bundle 1: Lighting Adaptation (Depth Exposure + Gain)": {
+            "parameters_changed": [
+                "Depth Exposure",
+                "Depth Gain"
+            ],
+            "usb_total_cmd_latency_ms": 105.56,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 2,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_2"
+                },
+                "5_Hz": {
+                    "dropped_frames": 12,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_12"
+                },
+                "10_Hz": {
+                    "dropped_frames": 19,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_19"
+                },
+                "15_Hz": {
+                    "dropped_frames": 27,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_27"
+                },
+                "30_Hz": {
+                    "dropped_frames": 34,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_34"
+                }
+            }
+        },
+        "Bundle 2: Active/Passive Switching (Emitter + Laser + Exposure)": {
+            "parameters_changed": [
+                "Depth Emitter Enabled",
+                "Depth Laser Power",
+                "Depth Exposure"
+            ],
+            "usb_total_cmd_latency_ms": 158.84,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 11,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_11"
+                },
+                "5_Hz": {
+                    "dropped_frames": 44,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_44"
+                },
+                "10_Hz": {
+                    "dropped_frames": 48,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_48"
+                },
+                "15_Hz": {
+                    "dropped_frames": 48,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_48"
+                },
+                "30_Hz": {
+                    "dropped_frames": 48,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_48"
+                }
+            }
+        },
+        "Bundle 3: Synced Exposure (Depth Exposure + RGB Exposure)": {
+            "parameters_changed": [
+                "Depth Exposure",
+                "RGB Exposure"
+            ],
+            "usb_total_cmd_latency_ms": 38.65,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "depth",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 32,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_32"
+                },
+                "30_Hz": {
+                    "dropped_frames": 33,
+                    "monitored_stream": "depth",
+                    "status": "DROPPED_33"
+                }
+            }
+        },
+        "Bundle 4: RGB Tuning (Exposure + Gain + White Balance)": {
+            "parameters_changed": [
+                "RGB Exposure",
+                "RGB Gain",
+                "RGB White Balance"
+            ],
+            "usb_total_cmd_latency_ms": 12.95,
+            "assumed_frame_propagation_delay": 1,
+            "frequency_stress_test": {
+                "2_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "5_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "10_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "15_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                },
+                "30_Hz": {
+                    "dropped_frames": 0,
+                    "monitored_stream": "color",
+                    "status": "PASSED"
+                }
+            }
+        }
+    }
+}
