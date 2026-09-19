@@ -324,6 +324,209 @@ def find_perceptible_step(pipe, colorizer, sensor, option, base_value, direction
     return result
 
 
+# ---------------------------------------------------------------------------
+# 5. INTENSITY & REFLECTIVITY BENCHMARK SUITE (NIR & Luminance Analysis)
+# ---------------------------------------------------------------------------
+def evaluate_intensity_benchmarks(pipe, colorizer, depth_sensor, color_sensor):
+    """
+    Comprehensive Intensity & Reflectivity suite:
+    1. Vectorized Near-Infrared (NIR) intensity filtering & computational latency.
+    2. Active vs Passive laser illumination contrast ratio (optical NIR reflection gain).
+    3. Photometric RGB luminance vs NIR intensity distribution dynamics.
+    4. Photonic step settling time under active laser power transient excitation.
+    """
+    intensity_results = {
+        "vectorized_filtering_benchmarks": {},
+        "active_vs_passive_contrast_ratio": {},
+        "photometric_luminance_correlation": {},
+        "laser_step_intensity_settling": {}
+    }
+
+    # Make sure sensors are stabilized before benchmark
+    for _ in range(10):
+        frames = pipe.wait_for_frames()
+        display_frame(frames, colorizer, ["Stabilizing sensor streams for Intensity benchmark..."])
+
+    # -------------------------------------------------------------------------
+    # Test A: Vectorized NIR Intensity Filtering Latency & Point Reduction
+    # -------------------------------------------------------------------------
+    print("\n[*] Evaluating NIR Intensity Filtering Latency & Point Filtering...")
+    filtering_scenarios = [
+        ("Low-Intensity Dust/Noise Rejection (I < 30)", lambda img: img < 30.0),
+        ("High-Reflectivity Target Extraction (I >= 180)", lambda img: img >= 180.0),
+        ("Bandpass Valid Surface Mask (30 <= I <= 220)", lambda img: (img >= 30.0) & (img <= 220.0))
+    ]
+
+    for label, filter_fn in filtering_scenarios:
+        latencies = []
+        reduction_ratios = []
+        total_pixels = 848 * 480
+
+        for _ in range(25):
+            frames = pipe.wait_for_frames()
+            ir_frame = frames.get_infrared_frame(1)
+            if not ir_frame:
+                continue
+
+            ir_data = np.asanyarray(ir_frame.get_data(), dtype=np.float32)
+
+            t0 = time.perf_counter()
+            mask = filter_fn(ir_data)
+            t1 = time.perf_counter()
+
+            latencies.append((t1 - t0) * 1000.0)
+            active_pixels = int(np.count_nonzero(mask))
+            reduction_ratios.append(round((1.0 - (active_pixels / total_pixels)) * 100.0, 2))
+
+            overlay = [
+                "Intensity Benchmark: Vectorized Filter",
+                f"Filter: {label}",
+                f"Latency: {latencies[-1]:.4f} ms",
+                f"Filtered: {reduction_ratios[-1]}% pixels"
+            ]
+            if not display_frame(frames, colorizer, overlay):
+                return None
+
+        intensity_results["vectorized_filtering_benchmarks"][label] = {
+            "total_pixels_per_frame": total_pixels,
+            "average_filter_latency_ms": round(float(np.mean(latencies)), 4),
+            "average_pixel_reduction_pct": round(float(np.mean(reduction_ratios)), 2)
+        }
+
+    # -------------------------------------------------------------------------
+    # Test B: Active vs Passive Optical NIR Illumination Contrast
+    # -------------------------------------------------------------------------
+    print("\n[*] Evaluating Active vs Passive NIR Illumination Contrast Ratio...")
+    laser_max = clamp_value(depth_sensor, rs.option.laser_power, 240)
+    laser_min = clamp_value(depth_sensor, rs.option.laser_power, 0)
+
+    # 1. Passive NIR Baseline (Emitter OFF)
+    depth_sensor.set_option(rs.option.emitter_enabled, 0)
+    depth_sensor.set_option(rs.option.laser_power, laser_min)
+    time.sleep(0.2)
+    passive_means = []
+    for _ in range(12):
+        frames = pipe.wait_for_frames()
+        ir_frame = frames.get_infrared_frame(1)
+        if ir_frame:
+            ir_data = np.asanyarray(ir_frame.get_data(), dtype=np.float32)
+            passive_means.append(float(np.mean(ir_data)))
+        display_frame(frames, colorizer, ["Measuring Passive NIR Baseline (Laser OFF)..."])
+
+    # 2. Active NIR Illumination (Laser ON)
+    depth_sensor.set_option(rs.option.emitter_enabled, 1)
+    depth_sensor.set_option(rs.option.laser_power, laser_max)
+    time.sleep(0.2)
+    active_means = []
+    for _ in range(12):
+        frames = pipe.wait_for_frames()
+        ir_frame = frames.get_infrared_frame(1)
+        if ir_frame:
+            ir_data = np.asanyarray(ir_frame.get_data(), dtype=np.float32)
+            active_means.append(float(np.mean(ir_data)))
+        display_frame(frames, colorizer, ["Measuring Active NIR Illumination (Laser ON)..."])
+
+    mean_passive = float(np.mean(passive_means)) if passive_means else 1.0
+    mean_active = float(np.mean(active_means)) if active_means else 1.0
+    contrast_ratio = round(mean_active / max(1e-3, mean_passive), 3)
+
+    intensity_results["active_vs_passive_contrast_ratio"] = {
+        "passive_ir_mean_intensity": round(mean_passive, 2),
+        "active_ir_mean_intensity": round(mean_active, 2),
+        "optical_active_amplification_ratio": contrast_ratio,
+        "laser_power_tested_mw": laser_max
+    }
+
+    # -------------------------------------------------------------------------
+    # Test C: Photometric Luminance vs NIR Intensity Distribution
+    # -------------------------------------------------------------------------
+    print("\n[*] Evaluating Photometric Luminance vs NIR Intensity Correlation...")
+    ir_means = []
+    rgb_luma_means = []
+    for _ in range(15):
+        frames = pipe.wait_for_frames()
+        color_frame = frames.get_color_frame()
+        ir_frame = frames.get_infrared_frame(1)
+
+        if color_frame and ir_frame:
+            color_mat = np.asanyarray(color_frame.get_data(), dtype=np.float32)
+            ir_mat = np.asanyarray(ir_frame.get_data(), dtype=np.float32)
+
+            # Standard ITU-R BT.601 Photometric Luminance: Y = 0.114*B + 0.587*G + 0.299*R
+            luma_mat = 0.114 * color_mat[:, :, 0] + 0.587 * color_mat[:, :, 1] + 0.299 * color_mat[:, :, 2]
+
+            rgb_luma_means.append(float(np.mean(luma_mat)))
+            ir_means.append(float(np.mean(ir_mat)))
+
+        overlay = [
+            "Intensity Benchmark: Photometric Correlation",
+            f"Mean RGB Luminance: {rgb_luma_means[-1]:.2f}",
+            f"Mean NIR Intensity: {ir_means[-1]:.2f}"
+        ]
+        if not display_frame(frames, colorizer, overlay):
+            return None
+
+    intensity_results["photometric_luminance_correlation"] = {
+        "mean_rgb_photometric_luminance": round(float(np.mean(rgb_luma_means)), 2),
+        "mean_nir_optical_intensity": round(float(np.mean(ir_means)), 2),
+        "optical_nir_to_luma_ratio": round(float(np.mean(ir_means)) / max(1e-3, float(np.mean(rgb_luma_means))), 3)
+    }
+
+    # -------------------------------------------------------------------------
+    # Test D: Photonic Step Settling Time under Laser Excitation
+    # -------------------------------------------------------------------------
+    print("\n[*] Evaluating Photonic Step Settling Time under Laser Excitation...")
+    # Step transition: Laser Power 0 -> Max Laser Power
+    depth_sensor.set_option(rs.option.laser_power, laser_min)
+    time.sleep(0.15)
+    for _ in range(5):
+        pipe.wait_for_frames()
+
+    t_step_start = time.perf_counter()
+    depth_sensor.set_option(rs.option.laser_power, laser_max)
+
+    frames_to_settle = None
+    settling_time_ms = None
+    prev_ir_mean = None
+
+    for f_idx in range(1, 30):
+        frames = pipe.wait_for_frames()
+        ir_frame = frames.get_infrared_frame(1)
+        if not ir_frame:
+            continue
+
+        curr_ir_mean = float(np.mean(np.asanyarray(ir_frame.get_data(), dtype=np.float32)))
+
+        if prev_ir_mean is not None and frames_to_settle is None:
+            # Steady state threshold: inter-frame photon shift < 0.6 DN
+            if abs(curr_ir_mean - prev_ir_mean) < 0.6 and f_idx >= 2:
+                frames_to_settle = f_idx
+                settling_time_ms = (time.perf_counter() - t_step_start) * 1000.0
+
+        prev_ir_mean = curr_ir_mean
+
+        overlay = [
+            "Intensity Benchmark: Step Settling",
+            f"Laser Step: 0 -> {laser_max} mW",
+            f"Frame: {f_idx} | Current IR Mean: {curr_ir_mean:.2f}",
+            f"Settled at Frame: {frames_to_settle if frames_to_settle else 'Settling...'}"
+        ]
+        if not display_frame(frames, colorizer, overlay):
+            return None
+
+        if frames_to_settle is not None and f_idx >= frames_to_settle + 3:
+            break
+
+    intensity_results["laser_step_intensity_settling"] = {
+        "laser_power_step_mw": [laser_min, laser_max],
+        "frames_to_photonic_steady_state": frames_to_settle,
+        "measured_photonic_settling_ms": round(settling_time_ms, 2) if settling_time_ms else None,
+        "nominal_frame_period_ms": round(FRAME_PERIOD_MS, 2)
+    }
+
+    return intensity_results
+
+
 def main():
     pipe = rs.pipeline()
     cfg = rs.config()
@@ -354,7 +557,8 @@ def main():
         "fps": 30,
         "individual_tests": {},
         "bundled_tests": {},
-        "perceptibility_tests": {}
+        "perceptibility_tests": {},
+        "intensity_benchmarks": {}
     }
 
     try:
@@ -635,6 +839,17 @@ def main():
             )
             if result is None: return
             benchmark_data["perceptibility_tests"][name] = result
+
+        # -------------------------------------------------------------
+        # 4. INTENSITY & REFLECTIVITY BENCHMARKS (NIR & Luminance Analysis)
+        # -------------------------------------------------------------
+        print("\n" + "=" * 65)
+        print(">>> PHASE 4: INTENSITY & REFLECTIVITY BENCHMARK SUITE")
+        print("=" * 65)
+
+        intensity_data = evaluate_intensity_benchmarks(pipe, colorizer, depth_sensor, color_sensor)
+        if intensity_data is None: return
+        benchmark_data["intensity_benchmarks"] = intensity_data
 
         with open("benchmark_report.json", "w") as f:
             json.dump(benchmark_data, f, indent=4)
