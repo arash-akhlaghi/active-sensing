@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 import subprocess
 import time
 import json
@@ -7,6 +8,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import LaserScan
+from rclpy.qos import qos_profile_sensor_data
 
 NOMINAL_SCAN_PERIOD_MS = 100.0  # 10 Hz -> 100 ms per 360-deg sweep
 
@@ -23,7 +25,7 @@ class LidarDualBenchmark(Node):
             LaserScan,
             '/scan',
             self.scan_callback,
-            20
+            qos_profile_sensor_data
         )
 
     def scan_callback(self, msg: LaserScan):
@@ -39,7 +41,7 @@ class LidarDualBenchmark(Node):
         self.last_stamp = curr_stamp
         self.latest_scan = msg
 
-    def wait_for_scans(self, num_scans=1, timeout_sec=2.0):
+    def wait_for_scans(self, num_scans=1, timeout_sec=6.0):
         start = self.scan_count
         t0 = time.time()
         while (self.scan_count - start < num_scans) and (time.time() - t0 < timeout_sec):
@@ -47,6 +49,50 @@ class LidarDualBenchmark(Node):
         return (self.scan_count - start) >= num_scans
 
 
+# ---------------------------------------------------------------------------
+# Vectorized Dynamic Filters (Angle Crop, Intensity, & Composite)
+# ---------------------------------------------------------------------------
+def apply_dynamic_angle_filter(scan: LaserScan, crop_min_deg: float, crop_max_deg: float):
+    """Simulates zero-copy dynamic stream angle-crop filtering in memory."""
+    ranges = np.array(scan.ranges, dtype=np.float32)
+    angles_deg = np.rad2deg(
+        scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
+    )
+    mask = (angles_deg >= crop_min_deg) & (angles_deg <= crop_max_deg)
+    ranges[mask] = np.nan
+    return ranges
+
+
+def apply_dynamic_intensity_filter(scan: LaserScan, min_intensity: float):
+    """Filters out points with reflectivity below the threshold (Dust/Noise rejection)."""
+    ranges = np.array(scan.ranges, dtype=np.float32)
+    if len(scan.intensities) > 0:
+        intensities = np.array(scan.intensities, dtype=np.float32)
+        mask = intensities < min_intensity
+        ranges[mask] = np.nan
+    return ranges
+
+
+def apply_dynamic_composite_filter(scan: LaserScan, crop_min_deg: float, crop_max_deg: float, min_intensity: float):
+    """Simultaneous: Angular Sector Windowing AND Reflectivity Thresholding."""
+    ranges = np.array(scan.ranges, dtype=np.float32)
+    angles_deg = np.rad2deg(
+        scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
+    )
+    angle_mask = (angles_deg >= crop_min_deg) & (angles_deg <= crop_max_deg)
+    ranges[angle_mask] = np.nan
+
+    if len(scan.intensities) > 0:
+        intensities = np.array(scan.intensities, dtype=np.float32)
+        intensity_mask = intensities < min_intensity
+        ranges[intensity_mask] = np.nan
+
+    return ranges
+
+
+# ---------------------------------------------------------------------------
+# Hardware & Process Lifecycle Management
+# ---------------------------------------------------------------------------
 def stop_lidar_driver(proc):
     """Measures exact serial port teardown and process shutdown latency."""
     if proc is None:
@@ -61,8 +107,10 @@ def stop_lidar_driver(proc):
             proc.wait()
         except ProcessLookupError:
             pass
+
+    subprocess.run(["pkill", "-9", "-f", "ldlidar_stl_ros2_node"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     t1 = time.perf_counter()
-    time.sleep(0.3)  # OS serial port buffer release margin
+    time.sleep(0.4)  # Kernel UART buffer cooling margin
     return (t1 - t0) * 1000.0
 
 
@@ -92,43 +140,33 @@ def start_lidar_driver(params):
     return proc, t0
 
 
-def apply_dynamic_filter(scan: LaserScan, crop_min_deg: float, crop_max_deg: float):
-    """Simulates zero-copy dynamic stream angle-crop filtering in memory."""
-    ranges = np.array(scan.ranges, dtype=np.float32)
-    angles_deg = np.rad2deg(
-        scan.angle_min + np.arange(len(ranges)) * scan.angle_increment
-    )
-    mask = (angles_deg >= crop_min_deg) & (angles_deg <= crop_max_deg)
-    ranges[mask] = np.nan
-    return ranges
-
-
+# ---------------------------------------------------------------------------
+# Master Benchmark Execution
+# ---------------------------------------------------------------------------
 def run_benchmark():
     rclpy.init()
     bench = LidarDualBenchmark()
 
-    # Base JSON Structure with parameter categorization at the top
     report = {
-        "device": "LDLiDAR STL27L",
+        "device": "LDLiDAR STL27L 2D LiDAR",
         "interface": "ROS 2 Jazzy (/scan)",
         "parameter_classification": {
             "dynamic_runtime_parameters": {
-                "description": "Parameters that can be adapted on-the-fly in active sensing loops without killing the node/hardware stream.",
+                "description": "Parameters adapted on-the-fly via vectorized NumPy arrays without restarting the node.",
                 "parameters": [
-                    "Dynamic Angle Crop Enable",
-                    "Crop Min Angle (0.0 to 360.0 deg)",
-                    "Crop Max Angle (0.0 to 360.0 deg)",
-                    "Intensity Filtering Threshold"
+                    "Dynamic Angle Crop (Min/Max Angle deg)",
+                    "Dynamic Intensity / Reflectivity Thresholding",
+                    "Composite Multi-Parameter Dynamic Filtering"
                 ]
             },
             "static_parameters_requiring_restart": {
-                "description": "Parameters requiring full node shutdown, serial port release, and respawn due to lack of dynamic reconfigure in vendor driver.",
+                "description": "Driver/hardware level parameters requiring serial bus release and cold process respawn.",
                 "parameters": [
                     "laser_scan_dir (Rotational Coordinate Inversion)",
-                    "port_name (Serial Bus Path /dev/ttyUSBX)",
-                    "port_baudrate (UART Communication Speed)",
-                    "frame_id (TF Transform Target)",
-                    "enable_angle_crop_func (Driver-level instantiation)"
+                    "enable_angle_crop_func (Driver-level daemon filtering)",
+                    "port_name (/dev/ttyUSBX path)",
+                    "port_baudrate (UART communication baudrate)",
+                    "frame_id (ROS 2 TF Transform Target)"
                 ]
             }
         },
@@ -139,9 +177,9 @@ def run_benchmark():
     current_process = None
 
     try:
-        print("\n" + "=" * 75)
-        print(">>> 1. INITIALIZING BASELINE HARDWARE STREAM")
-        print("=" * 75)
+        print("\n" + "=" * 80)
+        print(">>> 1. INITIALIZING BASELINE HARDWARE STREAM (/dev/ttyUSB0 @ 921600 baud)")
+        print("=" * 80)
 
         base_params = {
             "laser_scan_dir": "true",
@@ -151,57 +189,97 @@ def run_benchmark():
         }
         current_process, _ = start_lidar_driver(base_params)
 
-        if not bench.wait_for_scans(num_scans=5, timeout_sec=6.0):
-            print("[!] Error: Could not connect to /scan stream. Check /dev/ttyUSB0.")
+        if not bench.wait_for_scans(num_scans=5, timeout_sec=8.0):
+            print("[!] Error: Could not connect to /scan stream. Check /dev/ttyUSB0 permissions.")
             return
 
-        print("[*] LiDAR stream locked. 10 Hz operational.")
+        print("[*] LiDAR stream locked. LaserScan active.")
 
         # =========================================================================
-        # PART 1: DYNAMIC PARAMETER BENCHMARK (STREAM SETTLING & PROCESSING)
+        # PART 1: DYNAMIC PARAMETER BENCHMARK (ANGLE, INTENSITY & COMPOSITE)
         # =========================================================================
-        print("\n" + "=" * 75)
-        print(">>> 2. BENCHMARKING DYNAMIC PARAMETERS (Active Perception Layer)")
-        print("=" * 75)
+        print("\n" + "=" * 80)
+        print(">>> 2. BENCHMARKING DYNAMIC PARAMETERS (Active Vectorized Perception)")
+        print("=" * 80)
 
-        dynamic_tests = [
-            ("Dynamic 90-deg Front Sector Crop", 0.0, 90.0),
-            ("Dynamic 180-deg Side Corridor Mask", 45.0, 225.0),
-            ("Dynamic 45-deg Narrow Beam Filter", 0.0, 45.0)
+        dynamic_scenarios = [
+            # Angle Crop Scenarios
+            (
+                "Dynamic 90-deg Front Sector Crop",
+                lambda scan: apply_dynamic_angle_filter(scan, 0.0, 90.0),
+                lambda scan: apply_dynamic_angle_filter(scan, 0.0, 0.0)
+            ),
+            (
+                "Dynamic 180-deg Side Corridor Mask",
+                lambda scan: apply_dynamic_angle_filter(scan, 45.0, 225.0),
+                lambda scan: apply_dynamic_angle_filter(scan, 0.0, 0.0)
+            ),
+            # Intensity Scenarios
+            (
+                "Dynamic Intensity Thresholding (Noise/Dust Rejection, Min Intensity: 50.0)",
+                lambda scan: apply_dynamic_intensity_filter(scan, 50.0),
+                lambda scan: apply_dynamic_intensity_filter(scan, 0.0)
+            ),
+            (
+                "Dynamic High-Reflectivity Target Extraction (Retro-Reflectors, Min Intensity: 180.0)",
+                lambda scan: apply_dynamic_intensity_filter(scan, 180.0),
+                lambda scan: apply_dynamic_intensity_filter(scan, 0.0)
+            ),
+            # Composite Scenario
+            (
+                "Composite Dynamic Filter (90-deg Front Crop + Intensity Threshold >= 100.0)",
+                lambda scan: apply_dynamic_composite_filter(scan, 0.0, 90.0, 100.0),
+                lambda scan: apply_dynamic_composite_filter(scan, 0.0, 0.0, 0.0)
+            )
         ]
 
-        for name, crop_min, crop_max in dynamic_tests:
-            print(f"\n[*] Testing Dynamic Parameter: {name}")
+        for name, active_filter, bypass_filter in dynamic_scenarios:
+            print(f"\n[*] Evaluating Dynamic Parameter: {name}")
 
-            # Latency to compute filter on scan array
             filter_latencies = []
-            for _ in range(20):
-                rclpy.spin_once(bench, timeout_sec=0.02)
-                t0 = time.perf_counter()
-                _ = apply_dynamic_filter(bench.latest_scan, crop_min, crop_max)
-                t1 = time.perf_counter()
-                filter_latencies.append((t1 - t0) * 1000.0)
+            valid_pts_in = []
+            valid_pts_out = []
 
-            # Stream Settling (Wait next revolution boundary)
+            for _ in range(25):
+                rclpy.spin_once(bench, timeout_sec=0.02)
+                if bench.latest_scan is None:
+                    continue
+
+                raw_ranges = np.array(bench.latest_scan.ranges, dtype=np.float32)
+                valid_pts_in.append(np.count_nonzero(~np.isnan(raw_ranges)))
+
+                t0 = time.perf_counter()
+                filtered = active_filter(bench.latest_scan)
+                t1 = time.perf_counter()
+
+                filter_latencies.append((t1 - t0) * 1000.0)
+                valid_pts_out.append(np.count_nonzero(~np.isnan(filtered)))
+
+            avg_latency = float(np.mean(filter_latencies)) if filter_latencies else 0.0
+            mean_in = float(np.mean(valid_pts_in)) if valid_pts_in else 1.0
+            mean_out = float(np.mean(valid_pts_out)) if valid_pts_out else 0.0
+            reduction_pct = round((1.0 - (mean_out / mean_in)) * 100.0, 2)
+
+            # Hardware Settling: next revolution boundary (100 ms at 10 Hz)
             start_count = bench.scan_count
             bench.wait_for_scans(num_scans=1)
             scans_to_settle = bench.scan_count - start_count
             settling_ms = scans_to_settle * NOMINAL_SCAN_PERIOD_MS
 
-            # Frequency stress test on dynamic parameters
+            # Frequency stress test
             stress_results = {}
             for rate in [2, 5, 10, 15, 30]:
                 period = 1.0 / rate
-                duration = 2.0
+                duration = 1.8
                 end_t = time.time() + duration
-                state = False
+                toggle = False
                 bench.dropped_scans = 0
 
                 while time.time() < end_t:
-                    state = not state
-                    c_max = crop_max if state else 0.0
+                    toggle = not toggle
                     rclpy.spin_once(bench, timeout_sec=period / 2.0)
-                    _ = apply_dynamic_filter(bench.latest_scan, crop_min, c_max)
+                    if bench.latest_scan is not None:
+                        _ = active_filter(bench.latest_scan) if toggle else bypass_filter(bench.latest_scan)
                     time.sleep(period / 2.0)
 
                 stress_results[f"{rate}_Hz"] = {
@@ -210,22 +288,25 @@ def run_benchmark():
                 }
 
             report["dynamic_parameters_benchmark"][name] = {
-                "algorithmic_filter_latency_ms": round(float(np.mean(filter_latencies)), 4),
+                "average_valid_input_beams": int(mean_in),
+                "average_valid_output_beams": int(mean_out),
+                "beam_reduction_ratio_pct": reduction_pct,
+                "algorithmic_filter_latency_ms": round(avg_latency, 4),
                 "hardware_settling": {
                     "scans_to_settle": scans_to_settle,
                     "estimated_hw_settling_latency_ms": settling_ms,
                     "dropped_scans_during_settling": 0,
-                    "note": "Settles at the next physical revolution boundary (1 scan = 100ms)."
+                    "note": "Settles at the next physical revolution boundary (1 scan = 100ms at 10Hz)."
                 },
                 "frequency_stress_test": stress_results
             }
 
         # =========================================================================
-        # PART 2: STATIC PARAMETER BENCHMARK (SHUTDOWN, SPAWN & DOWNTIME)
+        # PART 2: STATIC PARAMETER BENCHMARK (SERIAL PORT & LIFECYCLE RECONFIG)
         # =========================================================================
-        print("\n" + "=" * 75)
-        print(">>> 3. BENCHMARKING STATIC PARAMETERS (Node Restart Lifecycle)")
-        print("=" * 75)
+        print("\n" + "=" * 80)
+        print(">>> 3. BENCHMARKING STATIC PARAMETERS (Node Restart & UART Lifecycle)")
+        print("=" * 80)
 
         static_scenarios = [
             {
@@ -238,7 +319,7 @@ def run_benchmark():
                 }
             },
             {
-                "name": "Driver-Level Crop Activation (Hardware Daemon Level)",
+                "name": "Driver-Level Hardware Crop Daemon Activation",
                 "params": {
                     "laser_scan_dir": "true",
                     "enable_angle_crop_func": "true",
@@ -247,7 +328,7 @@ def run_benchmark():
                 }
             },
             {
-                "name": "Corridor Geometry Reset",
+                "name": "Corridor Geometry Reconfiguration",
                 "params": {
                     "laser_scan_dir": "true",
                     "enable_angle_crop_func": "true",
@@ -261,18 +342,15 @@ def run_benchmark():
             name = sc["name"]
             print(f"\n[*] Evaluating Static Lifecycle: {name}")
 
-            # 1. Shutdown old process & measure port release duration
             bench.latest_scan = None
             shutdown_ms = stop_lidar_driver(current_process)
-            print(f"    [T_shutdown] Node Termination & Port Release: {shutdown_ms:.2f} ms")
+            print(f"    [T_shutdown] Node Termination & UART Port Release: {shutdown_ms:.2f} ms")
 
-            # 2. Respawn with new parameters
             current_process, t_launch_start = start_lidar_driver(sc["params"])
 
-            # 3. Measure time to first valid scan packet
             t_listen_start = time.time()
             first_scan_ms = None
-            timeout = 6.0
+            timeout = 7.0
 
             while (time.time() - t_listen_start) < timeout:
                 rclpy.spin_once(bench, timeout_sec=0.02)
@@ -282,8 +360,8 @@ def run_benchmark():
 
             total_downtime_ms = shutdown_ms + (first_scan_ms if first_scan_ms else 0.0)
 
-            print(f"    [T_first_scan] Process Spawn to Valid Data: {first_scan_ms:.2f} ms")
-            print(f"    [T_total_downtime] Total Perception Gap: {total_downtime_ms:.2f} ms")
+            print(f"    [T_first_scan] Process Spawn to First Valid Scan: {first_scan_ms:.2f} ms")
+            print(f"    [T_total_downtime] Total Perception Blackout Gap: {total_downtime_ms:.2f} ms")
 
             report["static_parameters_benchmark"][name] = {
                 "configured_parameters": sc["params"],
@@ -291,7 +369,11 @@ def run_benchmark():
                 "time_to_first_scan_ms": round(first_scan_ms, 2) if first_scan_ms else None,
                 "total_reconfiguration_downtime_ms": round(total_downtime_ms, 2),
                 "data_stream_verified": first_scan_ms is not None,
-                "note": "Perception blind time during driver cold-restart."
+                "safety_blind_distance_meters": {
+                    "at_0_5_mps": round(0.5 * (total_downtime_ms / 1000.0), 3),
+                    "at_1_0_mps": round(1.0 * (total_downtime_ms / 1000.0), 3),
+                    "at_2_0_mps": round(2.0 * (total_downtime_ms / 1000.0), 3)
+                }
             }
 
             time.sleep(1.0)
@@ -302,12 +384,12 @@ def run_benchmark():
         bench.destroy_node()
         rclpy.shutdown()
 
-    # Save to file
-    with open("benchmark_lidar2d_dual_report.json", "w") as f:
+    out_file = "benchmark_lidar2d_dual_report.json"
+    with open(out_file, "w") as f:
         json.dump(report, f, indent=4)
 
-    print("\n" + "=" * 75)
-    print("[*] Complete benchmark exported to: benchmark_lidar2d_dual_report.json\n")
+    print("\n" + "=" * 80)
+    print(f"[*] Complete benchmark exported to: {out_file}\n")
     print(json.dumps(report, indent=2))
 
 
