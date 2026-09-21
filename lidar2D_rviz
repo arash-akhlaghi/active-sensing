@@ -1,0 +1,4 @@
+sudo chmod 666 /dev/ttyUSB0
+source /opt/ros/jazzy/setup.zsh
+source ~/ldlidar_ros2_ws/install/setup.zsh 2>/dev/null || source ~/ros2_ws/install/setup.zsh 2>/dev/null
+python3 lidar2d_interactive_tuner.py
