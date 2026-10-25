@@ -90,7 +90,7 @@ python -c "import isaaclab; print(isaaclab.__version__)"
 ├── lidar2D_rviz/                             # RViz2 config for LDLiDAR STL27L
 ├── lidar3D_rviz/                             # RViz2 config for Livox Mid-360
 └── videos/
-    └── lidar3D.mp4                # Livox Mid-360 3D point cloud demo
+    └── lidar3D.mp4                           # Livox Mid-360 3D point cloud demo
 ```
 
 ---
@@ -267,11 +267,7 @@ python3 livox_mid360_interactive_tuner.py
 
 `videos/lidar3D.mp4` — recorded 3D point cloud from the Livox Mid-360 running through `livox_mid360_interactive_tuner.py`, showing FOV trimming, range gating, intensity thresholding, and composite presets live in RViz2.
 
-https://github.com/USER/REPO/raw/main/videos/lidar3D.mp4
-
-> **Note:** Replace `USER/REPO` with your GitHub username and repository name. GitHub does not render `<video>` tags pointing to repo-relative paths, so the most reliable option is to **drag-and-drop the MP4 into a GitHub issue or PR comment**, copy the generated `https://github.com/user-attachments/assets/...` URL, and paste it here. GitHub will then render an inline playable video player.
-
-<video src="https://github.com/USER/REPO/raw/main/videos/lidar3D.mp4" controls width="100%"></video>
+<video src="https://github.com/arash-akhlaghi/active-sensing/raw/master/videos/lidar3D.mp4" controls width="100%"></video>
 
 ---
 
