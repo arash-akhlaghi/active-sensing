@@ -9,8 +9,5 @@ venv/
 *.swp
 .vscode/
 
-test_d456_params.py/
-
-usb_test.py/
 test_d456_params.py
 usb_test.py
