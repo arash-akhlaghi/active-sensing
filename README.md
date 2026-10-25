@@ -18,9 +18,11 @@ A unified hardware benchmarking, latency profiling, and real-time interactive pa
 - [2. Repository Architecture](#2-repository-architecture)
 - [3. Execution Guide & Measured Parameters](#3-execution-guide--measured-parameters)
   - [Section A: Intel RealSense D456](#section-a-intel-realsense-d456)
-  - [Section B: LDLiDAR STL27L (2D Planar LiDAR)](#section-b-ldlidar-stl27l-2d-planar-lidar)
+  - [Section B: LDLiDAR STL27L (2D Planar LiDAR)](#section-b-lidar2d-stl27l-2d-planar-lidar)
   - [Section C: Livox Mid-360 (3D Solid-State LiDAR)](#section-c-livox-mid-360-3d-solid-state-lidar)
-- [4. Benchmark Artifacts & Reports](#4-benchmark-artifacts--reports)
+  - [Section D: Integrated Isaac Lab Multi-Sensor Demo](#section-d-integrated-isaac-lab-multi-sensor-demo)
+- [4. Demo Videos](#4-demo-videos)
+- [5. Benchmark Artifacts & Reports](#5-benchmark-artifacts--reports)
 
 ---
 
@@ -58,6 +60,16 @@ source /opt/ros/jazzy/setup.bash
 source ~/livox_ros2_ws/install/setup.bash
 ```
 
+### Isaac Lab (for Section D only)
+
+`Section D` runs inside **Isaac Lab 3.0** (which wraps NVIDIA Isaac Sim). Install Isaac Lab per the [official guide](https://isaac-sim.github.io/IsaacLab/), then confirm:
+
+```bash
+python -c "import isaaclab; print(isaaclab.__version__)"
+```
+
+`isaaclab_visualizers` (Kit) and `isaaclab.sensors` (Camera, RayCaster) must be importable.
+
 ---
 
 ## 2. Repository Architecture
@@ -68,7 +80,17 @@ source ~/livox_ros2_ws/install/setup.bash
 ├── benchmark_lidar2d.py                      # LDLiDAR STL27L dual-layer lifecycle & RAM benchmark
 ├── lidar2d_interactive_tuner.py              # LDLiDAR 2D live interactive CLI tuner + auto RViz2
 ├── benchmark_livox_mid360_dual_lifecycle.py  # Livox Mid-360 3D master lifecycle & FOV benchmark
-└── livox_mid360_interactive_tuner.py         # Livox Mid-360 3D interactive CLI tuner + decay buffer
+├── livox_mid360_interactive_tuner.py         # Livox Mid-360 3D interactive CLI tuner + decay buffer
+├── sensor_suite_demo.py                      # Isaac Lab 3.0 wheeled robot + D456 + 2D/3D LiDAR dashboard
+├── test_d456_params.py                       # RealSense D456 parameter sanity checks
+├── usb_test.py                               # USB link / enumeration diagnostics
+├── benchmark_report.json                     # RealSense benchmark output
+├── benchmark_lidar2d_dual_report.json        # LDLiDAR STL27L benchmark output
+├── benchmark_livox_mid360_master_report.json # Livox Mid-360 benchmark output
+├── lidar2D_rviz/                             # RViz2 config for LDLiDAR STL27L
+├── lidar3D_rviz/                             # RViz2 config for Livox Mid-360
+└── videos/
+    └── lidar3D-compressed.mp4                # Livox Mid-360 3D point cloud demo
 ```
 
 ---
@@ -77,7 +99,7 @@ source ~/livox_ros2_ws/install/setup.bash
 
 ### Section A: Intel RealSense D456
 
-#### 1. Comprehensive Benchmark — `benchmark_realsense.py`
+#### 1. Comprehensive Benchmark — `benchmark_realsence.py`
 
 Executes hardware profiling across 4 testing phases, validating hardware registers against frame metadata and exporting `benchmark_report.json`.
 
@@ -241,9 +263,107 @@ python3 livox_mid360_interactive_tuner.py
 | Pan | Shift + Left-Click + Drag |
 | Zoom | Scroll Wheel |
 
+#### 3. Demo Video — Livox Mid-360 3D Point Cloud
+
+`videos/lidar3D-compressed.mp4` — recorded 3D point cloud from the Livox Mid-360 running through `livox_mid360_interactive_tuner.py`, showing FOV trimming, range gating, intensity thresholding, and composite presets live in RViz2.
+
+https://github.com/USER/REPO/raw/main/videos/lidar3D-compressed.mp4
+
+> **Note:** Replace `USER/REPO` with your GitHub username and repository name. GitHub does not render `<video>` tags pointing to repo-relative paths, so the most reliable option is to **drag-and-drop the MP4 into a GitHub issue or PR comment**, copy the generated `https://github.com/user-attachments/assets/...` URL, and paste it here. GitHub will then render an inline playable video player.
+
+<video src="https://github.com/USER/REPO/raw/main/videos/lidar3D-compressed.mp4" controls width="100%"></video>
+
 ---
 
-## 4. Benchmark Artifacts & Reports
+### Section D: Integrated Isaac Lab Multi-Sensor Demo
+
+#### `sensor_suite_demo.py`
+
+A self-contained **Isaac Lab 3.0** simulation (powered by **NVIDIA Isaac Sim**) that places all three sensors on a **2-wheeled differential-drive robot** patrolling an enclosed 8×8 m room with six colored obstacles. The robot drives autonomously along a 12-waypoint patrol route (or is teleoperated manually), and a floating **Omni.UI dashboard** renders a live 2×2 telemetry grid: **D456 RGB · D456 Depth · 2D LiDAR polar view · 3D LiDAR perspective view**. A translucent overlay draws the **2D LiDAR rays as 2 mm-thin green curves** directly in the 3D viewport (togglable).
+
+This script integrates directly with Isaac Sim's simulation pipeline to provide pre-hardware validation—allowing developers to verify filter pipelines, extrinsic mounting, and sensor FOV alignment before deploying code onto physical hardware.
+
+**Prerequisites:**
+
+- **Isaac Lab 3.0** (bundles Isaac Sim — install per the [Isaac Lab guide](https://isaac-sim.github.io/IsaacLab/))
+- `isaaclab`, `isaaclab_visualizers`, `isaaclab.sensors` importable
+- OpenCV (`opencv-python`) and NumPy in the active Python env
+
+**Command:**
+
+```bash
+python3 sensor_suite_demo.py
+```
+
+The script auto-generates two temporary USD assets on first launch (`/tmp/isaaclab_d456_wheeled_robot.usda` and `/tmp/isaaclab_room_world_mesh.usda`) — no manual asset files are required.
+
+**Scene:**
+
+| Element | Description |
+|---|---|
+| **Room** | 10 × 10 m floor, four 8.20 m perimeter walls (1.5 m high) |
+| **Obstacles** | 3 cylinders (Red 0.35 m Ø, Yellow 0.35 m Ø, Cyan 0.32 m Ø) + 3 boxes (Blue 0.75×0.75×0.90 m, Green 0.65×0.95×0.80 m, Purple 0.95×0.45×1.00 m) |
+| **Robot** | 2-wheel differential drive · chassis 5 kg · wheels 0.8 kg each · wheel radius 0.10 m · wheelbase 0.38 m · axle height `z = 0.102 m` (wheels rest exactly on the floor, no sinking) |
+| **Wheel visuals** | Dark rubber tire + yellow cross-spokes that rotate with the physics wheel-joint states |
+
+**Sensors mounted on the robot:**
+
+| Sensor | Configuration | Mount (chassis-local) | Dashboard View |
+|---|---|---|---|
+| **Intel RealSense D456** | `focal_length=1.93 mm`, horizontal aperture `3.663 mm` (87° H FOV), vertical aperture `2.140 mm` (58° V FOV), clip `0.05–12 m` | Front visor, `x≈0.21 m`, pitch −3° | RGB (top-left) + Depth colormap with center-distance crosshair (top-right) |
+| **2D LiDAR** | `1` channel, `1.0°` horizontal resolution, `360°` sweep, `max_distance=12 m` | `(0.02, 0.0, 0.14)` — red turret puck | Polar scan view with range rings, min-distance readout, and FOV wedge (bottom-left) |
+| **3D LiDAR** | `16` channels, `−15° … +15°` vertical FOV, `2.0°` horizontal resolution, `max_distance=12 m` | `(−0.09, 0.0, 0.23)` — gold dome | Perspective projection with Turbo colormap by range (bottom-right) |
+
+Both LiDARs raycast against a **single combined world-space collider mesh** (`/World/RoomCollider`) that includes the floor, four walls, three cylinders, and three boxes, so all beam hits are consistent frame-to-frame.
+
+**Robot behaviour:**
+
+- **AUTO PATROL** — 12-waypoint loop with smooth yaw tracking; speed auto-reduces during sharp turns.
+- **Hard SDF collision resolver** — never penetrates walls, cylinders, or boxes; slides tangentially around obstacles and advances the waypoint if a stuck condition is detected, so the patrol never deadlocks.
+- **MANUAL TELEOP** — keyboard or UI buttons; linear velocity clamp ±1.2/1.5 m/s, angular ±2.2 rad/s.
+- **Wheel joint states** are synchronized to the commanded velocity (`ω = v / R`) so wheel spokes visually spin at the correct rate.
+
+**Keyboard Controls (active only in GUI mode):**
+
+| Key | Action |
+|---|---|
+| `↑` / `I` | Increase forward speed (+0.15 m/s) |
+| `↓` / `K` | Decrease forward speed (−0.15 m/s) |
+| `←` / `J` | Turn left (+0.35 rad/s) |
+| `→` / `L` | Turn right (−0.35 rad/s) |
+| `Space` | Emergency stop (linear + angular = 0) |
+| `P` | Toggle AUTO PATROL ↔ MANUAL TELEOP |
+| `B` | Toggle 2D LiDAR ray overlay (2 mm green curves in 3D viewport) |
+
+**Dashboard UI buttons & sliders:**
+
+| Control | Function |
+|---|---|
+| **Mode: AUTO PATROL / MANUAL TELEOP** | Toggle autonomous waypoint following |
+| **3D Beams: ON (2mm) / OFF** | Toggle the thin laser-ray overlay |
+| **+Speed / −Speed / Left / Right / STOP** | Button equivalents of the keyboard teleop |
+| **Preset: D456 Aligned Depth (87×58°)** | Apply depth-stream intrinsics |
+| **Preset: D456 Native RGB (90×65°)** | Apply RGB-stream intrinsics |
+| **D456 Focal Length (mm)** | Slider 1.00 – 4.50 mm (live USD camera update) |
+| **D456 Max Depth (m)** | Slider 1.0 – 10.0 m (depth colormap normalization) |
+| **2D LiDAR Range (m)** | Slider 1.5 – 10.0 m |
+| **2D LiDAR FOV (deg)** | Slider 30 – 360° |
+| **3D LiDAR Range (m)** | Slider 1.5 – 10.0 m |
+| **3D LiDAR VFOV (deg)** | Slider ±2 – ±15° |
+
+> **Note:** This demo is simulation-only — it does not export a benchmark JSON report. Use it to sanity-check filter behaviour and sensor alignment before running the hardware benchmark scripts in Sections A–C.
+
+---
+
+## 4. Demo Videos
+
+| Video | Sensor | Description |
+|---|---|---|
+| [`videos/lidar3D-compressed.mp4`](videos/lidar3D-compressed.mp4) | Livox Mid-360 (3D) | Live 3D point cloud with FOV trimming, range gating, intensity thresholds, and composite presets via `livox_mid360_interactive_tuner.py` |
+
+---
+
+## 5. Benchmark Artifacts & Reports
 
 Every benchmark script exports a machine-readable JSON report upon test completion.
 
@@ -253,3 +373,10 @@ Every benchmark script exports a machine-readable JSON report upon test completi
 | `benchmark_lidar2d.py` | `benchmark_lidar2d_dual_report.json` | RAM filter execution times, beam reduction ratios, serial port shutdown latencies, and safety blind margins |
 | `benchmark_livox_mid360_dual_lifecycle.py` | `benchmark_livox_mid360_master_report.json` | 3D sector filter benchmarks, composite pipelines, UDP socket unbind times, and state transition blackouts |
 
+> `sensor_suite_demo.py` is a simulation-only demo and does not export a benchmark report.
+
+---
+
+## License
+
+Add your license here (e.g. MIT, Apache-2.0).
