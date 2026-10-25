@@ -18,7 +18,7 @@ A unified hardware benchmarking, latency profiling, and real-time interactive pa
 - [2. Repository Architecture](#2-repository-architecture)
 - [3. Execution Guide & Measured Parameters](#3-execution-guide--measured-parameters)
   - [Section A: Intel RealSense D456](#section-a-intel-realsense-d456)
-  - [Section B: LDLiDAR STL27L (2D Planar LiDAR)](#section-b-lidar2d-stl27l-2d-planar-lidar)
+  - [Section B: LDLiDAR STL27L (2D Planar LiDAR)](#section-b-ldlidar-stl27l-2d-planar-lidar)
   - [Section C: Livox Mid-360 (3D Solid-State LiDAR)](#section-c-livox-mid-360-3d-solid-state-lidar)
   - [Section D: Integrated Isaac Lab Multi-Sensor Demo](#section-d-integrated-isaac-lab-multi-sensor-demo)
 - [4. Demo Videos](#4-demo-videos)
@@ -267,7 +267,7 @@ python3 livox_mid360_interactive_tuner.py
 
 `videos/lidar3D.mp4` — recorded 3D point cloud from the Livox Mid-360 running through `livox_mid360_interactive_tuner.py`, showing FOV trimming, range gating, intensity thresholding, and composite presets live in RViz2.
 
-<video src="https://github.com/arash-akhlaghi/active-sensing/raw/master/videos/lidar3D.mp4" controls width="100%"></video>
+<video src="https://github.com/user-attachments/assets/3f0eee89-5dd5-4fa9-8b84-be929cfb899b" controls width="100%"></video>
 
 ---
 
